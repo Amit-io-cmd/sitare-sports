@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% from "_macros.html" import scoreboard, catalog, board, group %}
+{% block title %}Coordinator{% endblock %}
+{% block content %}
+{{ scoreboard() }}
+
+<section>
+  <h2>Issue queue <small>oldest requests first</small></h2>
+  {% for l in pending | reverse %}
+  <article class="card loan" style="border-left: 5px solid var(--court);">
+    <div class="row">
+      <h3>
+        <span class="badge" style="background:#1f4fb5; font-size:0.9rem; padding:0.25rem 0.6rem; color:white; border-radius:4px; font-family:monospace;">#REQ-{{ '%04d' % l.id }}</span>
+        {{ l.ename }} <small>({{ l.sku }})</small>
+      </h3>
+      <small style="font-weight:600; color:var(--ink);">Requested: {{ l.requested_at }} · Duration: {{ l.hours }}h</small>
+    </div>
+    <div style="margin: 0.4rem 0;">
+      <strong>Lead Borrower:</strong> {{ l.lead_name }} <small>(User ID: #{{ l.lead_id }})</small>
+    </div>
+    <div style="margin: 0.4rem 0;">
+      <small style="display:block; font-weight:600; color:var(--grey); margin-bottom:0.2rem;">Group Borrowers (Verify {{ l.members | length }} IDs at desk):</small>
+      {{ group(l) }}
+    </div>
+    <div class="row end">
+      <form method="post" action="/coord/reject/{{ l.id }}"><button class="btn ghost">Decline</button></form>
+      <button class="btn primary" data-dlg="issue" data-title="Issue Request #REQ-{{ '%04d' % l.id }} ({{ l.ename }})" data-action="/coord/issue/{{ l.id }}">Issue to group</button>
+    </div>
+  </article>
+  {% else %}
+  <p class="empty">No pending requests waiting in queue.</p>
+  {% endfor %}
+</section>
+
+<section>
+  <h2>Active loans</h2>
+  {% for l in out %}
+  <article class="card loan {{ 'late' if l.overdue }}">
+    <div class="row">
+      <h3>
+        <span class="badge" style="background:#10203a; font-size:0.9rem; padding:0.25rem 0.6rem; color:white; border-radius:4px; font-family:monospace;">Loan #REQ-{{ '%04d' % l.id }}</span>
+        {{ l.ename }} <small>({{ l.sku }})</small>
+      </h3>
+      <span class="badge {{ 'red' if l.overdue else 'amber' }}">{{ 'Overdue' if l.overdue else 'In play' }} · due {{ l.due_at }}</span>
+    </div>
+    <div style="margin: 0.4rem 0;">
+      <strong>Issued in condition grade:</strong> <b>{{ l.issue_grade }}</b>{% if l.issue_notes %}: {{ l.issue_notes }}{% endif %}
+    </div>
+    {% if l.issue_photo %}
+    <div style="margin: 0.5rem 0;">
+      <small style="display:block; margin-bottom:0.2rem; font-weight:600;">📷 Handover Condition Photo:</small>
+      <a href="{{ l.issue_photo }}" target="_blank">
+        <img src="{{ l.issue_photo }}" alt="Handover Condition" style="max-height: 120px; border-radius: 6px; border: 1.5px solid var(--line); object-fit: cover;">
+      </a>
+    </div>
+    {% endif %}
+    <div style="margin: 0.4rem 0;">
+      <small style="display:block; font-weight:600; color:var(--grey); margin-bottom:0.2rem;">Group Borrowers:</small>
+      {{ group(l) }}
+    </div>
+    <div class="row end">
+      <button class="btn primary" data-dlg="return" data-title="Return Loan #REQ-{{ '%04d' % l.id }} ({{ l.ename }})" data-action="/coord/return/{{ l.id }}">Process return</button>
+    </div>
+  </article>
+  {% else %}
+  <p class="empty">Nothing is currently out on loan.</p>
+  {% endfor %}
+</section>
+
+<section>
+  <h2>Dues and suspensions</h2>
+  {% if dues %}<div class="scroll"><table><thead><tr><th>Student</th><th>Item</th><th>Share</th><th></th></tr></thead>
+    {% for d in dues %}<tr><td><b>#{{ d.user_id if 'user_id' in d else '' }}</b> {{ d.name }} <small>{{ d.email }}</small></td><td>{{ d.ename }} (Loan #REQ-{{ '%04d' % d.lid }})</td><td>₹{{ '%.2f' % d.share }}</td>
+      <td><form method="post" action="/coord/pay/{{ d.id }}"><button class="btn small">Mark paid</button></form></td></tr>{% endfor %}
+  </table></div>{% else %}<p class="empty">No unpaid dues.</p>{% endif %}
+  {% for s in flagged %}
+  <div class="card row"><span><b>#{{ s.id }} {{ s.name }}</b> is suspended: {{ s.reason }}</span>
+    <form method="post" action="/coord/reinstate/{{ s.id }}"><button class="btn small">Clear dues and reinstate</button></form></div>
+  {% endfor %}
+</section>
+
+{{ catalog(true) }}
+{{ board(out) }}
+
+<dialog id="dlg-issue"><form method="post" enctype="multipart/form-data" class="stack">
+  <h3 class="dlg-title"></h3>
+  <label>Condition at handover
+    <select name="grade"><option value="A">Grade A: new or excellent</option><option value="B">Grade B: normal wear</option></select></label>
+  <label>Notes on existing blemishes<textarea name="notes" rows="2" placeholder="Scuffed on one side, faded logo…"></textarea></label>
+  <label>📷 Snap / Upload Handover Condition Photo
+    <input type="file" name="photo" accept="image/*" capture="environment">
+  </label>
+  <div class="row"><button type="button" class="btn ghost" data-close>Cancel</button><button class="btn primary">Release item</button></div>
+</form></dialog>
+
+<dialog id="dlg-return"><form method="post" enctype="multipart/form-data" class="stack">
+  <h3 class="dlg-title"></h3>
+  <label>Condition on return
+    <select name="grade"><option value="A">Grade A: restock</option><option value="B">Grade B: restock</option>
+      <option value="C">Grade C: send to maintenance</option><option value="D">Grade D: condemned or lost</option></select></label>
+  <label>Inspection notes<textarea name="notes" rows="2" placeholder="Describe return condition or damage..."></textarea></label>
+  <label>Total fine (₹), late or damage<input type="number" name="fine" min="0" step="0.01" value="0"></label>
+  <label>📷 Snap / Upload Return Condition Photo
+    <input type="file" name="photo" accept="image/*" capture="environment">
+  </label>
+  <p class="hint">The fine is divided equally among every group member.</p>
+  <div class="row"><button type="button" class="btn ghost" data-close>Cancel</button><button class="btn primary">Log return</button></div>
+</form></dialog>
+
+<dialog id="dlg-equip"><form method="post" enctype="multipart/form-data" class="stack">
+  <h3 class="dlg-title"></h3>
+  <input type="hidden" name="id">
+  <label>Item name<input name="name" required></label>
+  <label>Sport<select name="sport">{% for s in sports %}<option>{{ s }}</option>{% endfor %}</select></label>
+  <label>Brand or model<input name="brand"></label>
+  <label>Rack location<input name="rack"></label>
+  <label>Condition<select name="grade"><option>A</option><option>B</option><option>C</option><option>D</option></select></label>
+  <label>📷 Equipment Reference Photo
+    <input type="file" name="photo" accept="image/*">
+  </label>
+  <label class="only-edit">Status<select name="status"><option value="available">Available</option>
+    <option value="maintenance">Maintenance</option><option value="condemned">Scrapped</option></select></label>
+  <label class="only-add">Units to add<input type="number" name="qty" min="1" max="50" value="1"></label>
+  <div class="row"><button type="button" class="btn ghost" data-close>Cancel</button><button class="btn primary">Save</button></div>
+</form></dialog>
+
+<dialog id="dlg-history"><div class="stack">
+  <h3 class="dlg-title"></h3><div id="hist" class="scroll"></div>
+  <button class="btn ghost" data-close>Close</button></div></dialog>
+{% endblock %}

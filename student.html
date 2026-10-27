@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "_macros.html" import scoreboard, catalog, board, group %}
+{% block title %}Student{% endblock %}
+{% block content %}
+{% if suspended %}<div class="flash error"><b>Borrowing suspended.</b> {{ suspended }}. Visit the sports desk to clear it.</div>{% endif %}
+{{ scoreboard() }}
+{{ catalog() }}
+
+<section>
+  <h2>My group loans</h2>
+  {% for l in mine %}
+  <article class="card loan">
+    <div class="row">
+      <h3>
+        <span class="badge" style="background:#10203a; font-size:0.85rem; padding:0.2rem 0.5rem; color:white; border-radius:4px; font-family:monospace;">#REQ-{{ '%04d' % l.id }}</span>
+        {{ l.ename }} <small>({{ l.sku }})</small>
+      </h3>
+      <span class="badge {{ 'red' if l.overdue else {'requested':'grey','issued':'amber','returned':'green','rejected':'grey'}[l.status] }}">
+        {{ 'Overdue' if l.overdue else {'requested':'Awaiting pickup at desk','issued':'In play','returned':'Returned','rejected':'Declined'}[l.status] }}
+      </span>
+    </div>
+    <p><strong>Lead Borrower:</strong> {{ l.lead_name }} <small>(User ID: #{{ l.lead_id }})</small>{% if l.due_at %} · <strong>Due back:</strong> {{ l.due_at }}{% endif %}{% if l.fine %} · <strong>Fine:</strong> ₹{{ '%.2f' % l.fine }} (split equally){% endif %}</p>
+    {{ group(l) }}
+  </article>
+  {% else %}<p class="empty">No loans yet. Pick an item above and request it with your group.</p>{% endfor %}
+</section>
+
+{{ board(out) }}
+
+<dialog id="dlg-request"><form method="post" action="/request" class="stack">
+  <h3>Request <span id="req-name"></span></h3>
+  <input type="hidden" name="equipment_id" id="req-id">
+  <p>You are the lead borrower. Optionally add 1 to 3 co-borrowers (all share responsibility).</p>
+  <label>Co-borrower 1 (optional)<input type="email" name="co" placeholder="e.g. friend1@sitare.org"></label>
+  <label>Co-borrower 2 (optional)<input type="email" name="co" placeholder="e.g. friend2@sitare.org"></label>
+  <label>Co-borrower 3 (optional)<input type="email" name="co" placeholder="e.g. friend3@sitare.org"></label>
+  <label>Borrow duration
+    <select name="hours">
+      <option value="2">2 hours</option>
+      <option value="4" selected>4 hours</option>
+      <option value="8">8 hours</option>
+      <option value="24">1 day</option>
+    </select>
+  </label>
+  <div class="row"><button type="button" class="btn ghost" data-close>Cancel</button><button class="btn primary">Send request</button></div>
+</form></dialog>
+{% endblock %}

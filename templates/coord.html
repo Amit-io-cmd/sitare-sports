@@ -1,0 +1,421 @@
+{% extends "base.html" %}
+{% from "_macros.html" import scoreboard, catalog, board, group %}
+{% block title %}{{ 'Admin' if user.role == 'admin' else 'Coordinator' }}{% endblock %}
+{% block content %}
+
+<!-- TAB 1: DASHBOARD OVERVIEW -->
+<div class="tab-panel" id="tab-dashboard">
+  {{ scoreboard() }}
+
+  {% if user.role == 'admin' %}
+  <!-- Admin Executive Overview ("The Real Things") -->
+  <section class="admin-section" style="margin-top: 1.5rem;">
+    <h2>👑 Real-Time System & Financial Overview</h2>
+    <div class="stats-grid">
+      <div class="stat-card court">
+        <span class="stat-label">Total Fines Assessed</span>
+        <b class="stat-value">₹{{ '%.2f' % total_fines_assessed }}</b>
+        <small class="stat-hint">Across all loan returns</small>
+      </div>
+      <div class="stat-card green">
+        <span class="stat-label">Total Fines Collected</span>
+        <b class="stat-value">₹{{ '%.2f' % total_fines_collected }}</b>
+        <small class="stat-hint">Paid by students</small>
+      </div>
+      <div class="stat-card red">
+        <span class="stat-label">Outstanding Unpaid Dues</span>
+        <b class="stat-value">₹{{ '%.2f' % total_unpaid_dues }}</b>
+        <small class="stat-hint">Pending collection</small>
+      </div>
+      <div class="stat-card amber">
+        <span class="stat-label">Active Coordinators</span>
+        <b class="stat-value">{{ user_counts.coordinators }}</b>
+        <small class="stat-hint">Out of {{ user_counts.total }} total users</small>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; margin-top: 1rem;">
+      <div class="card">
+        <h3>📦 Inventory Health Distribution</h3>
+        <ul style="list-style: none; padding: 0; margin: 0.5rem 0 0;">
+          <li style="display: flex; justify-content: space-between; padding: 0.3rem 0; border-bottom: 1px solid var(--line);">
+            <span>Available on shelf:</span> <b>{{ equipment_stats.available }} units</b>
+          </li>
+          <li style="display: flex; justify-content: space-between; padding: 0.3rem 0; border-bottom: 1px solid var(--line);">
+            <span>Issued on field:</span> <b>{{ equipment_stats.issued }} units</b>
+          </li>
+          <li style="display: flex; justify-content: space-between; padding: 0.3rem 0; border-bottom: 1px solid var(--line);">
+            <span>Under maintenance:</span> <b>{{ equipment_stats.maintenance }} units</b>
+          </li>
+          <li style="display: flex; justify-content: space-between; padding: 0.3rem 0;">
+            <span>Condemned / Scrapped:</span> <b>{{ equipment_stats.condemned }} units</b>
+          </li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>👥 Portal User Breakdown</h3>
+        <ul style="list-style: none; padding: 0; margin: 0.5rem 0 0;">
+          <li style="display: flex; justify-content: space-between; padding: 0.3rem 0; border-bottom: 1px solid var(--line);">
+            <span>Registered Students:</span> <b>{{ user_counts.students }}</b>
+          </li>
+          <li style="display: flex; justify-content: space-between; padding: 0.3rem 0; border-bottom: 1px solid var(--line);">
+            <span>Desk Coordinators:</span> <b>{{ user_counts.coordinators }}</b>
+          </li>
+          <li style="display: flex; justify-content: space-between; padding: 0.3rem 0;">
+            <span>System Admins:</span> <b>{{ user_counts.admins }}</b>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  <section style="margin-top: 1.5rem;">
+    <h2>Desk Quick Actions</h2>
+    <div style="display: flex; gap: 0.8rem; flex-wrap: wrap;">
+      <button class="btn primary" onclick="switchTab('tab-issue-queue')">📥 View Pending Requests ({{ pending | length }})</button>
+      <button class="btn primary" onclick="switchTab('tab-active-loans')">🏃 View Active Loans ({{ out | length }})</button>
+      <button class="btn ghost" data-dlg="equip" data-title="Add Equipment" data-action="/coord/equipment">+ Add New Inventory Item</button>
+    </div>
+  </section>
+</div>
+
+<!-- TAB 2: ISSUE QUEUE -->
+<div class="tab-panel" id="tab-issue-queue" style="display: none;">
+  <section>
+    <div class="row">
+      <h2>Issue queue <small>oldest requests first</small></h2>
+      <span class="badge court">{{ pending | length }} Waiting</span>
+    </div>
+    {% for l in pending | reverse %}
+    <article class="card loan" style="border-left: 5px solid var(--court);">
+      <div class="row">
+        <h3>
+          <span class="badge" style="background:#1f4fb5; font-size:0.9rem; padding:0.25rem 0.6rem; color:white; border-radius:4px; font-family:monospace;">#REQ-{{ '%04d' % l.id }}</span>
+          {{ l.ename }} <small>({{ l.sku }})</small>
+        </h3>
+        <small style="font-weight:600; color:var(--ink);">Requested: {{ l.requested_at | fmt_dt | safe }} · Duration: {{ l.hours }}h</small>
+      </div>
+      <div style="margin: 0.4rem 0;">
+        <strong>Lead Borrower:</strong> {{ l.lead_name }} <small>(User ID: #{{ l.lead_id }})</small>
+      </div>
+      <div style="margin: 0.4rem 0;">
+        <small style="display:block; font-weight:600; color:var(--grey); margin-bottom:0.2rem;">Group Borrowers (Verify {{ l.members | length }} IDs at desk):</small>
+        {{ group(l) }}
+      </div>
+      <div class="row end">
+        <form method="post" action="/coord/reject/{{ l.id }}"><button class="btn ghost">Decline</button></form>
+        <button class="btn primary" data-dlg="issue" data-title="Issue Request #REQ-{{ '%04d' % l.id }} ({{ l.ename }})" data-action="/coord/issue/{{ l.id }}">Issue to group</button>
+      </div>
+    </article>
+    {% else %}
+    <p class="empty">No pending requests waiting in queue.</p>
+    {% endfor %}
+  </section>
+</div>
+
+<!-- TAB 3: ACTIVE LOANS -->
+<div class="tab-panel" id="tab-active-loans" style="display: none;">
+  <section>
+    <div class="row">
+      <h2>Active loans</h2>
+      <span class="badge amber">{{ out | length }} Out on Field</span>
+    </div>
+    {% for l in out %}
+    <article class="card loan {{ 'late' if l.overdue }}">
+      <div class="row">
+        <h3>
+          <span class="badge" style="background:#10203a; font-size:0.9rem; padding:0.25rem 0.6rem; color:white; border-radius:4px; font-family:monospace;">Loan #REQ-{{ '%04d' % l.id }}</span>
+          {{ l.ename }} <small>({{ l.sku }})</small>
+        </h3>
+        <span class="badge {{ 'red' if l.overdue else 'amber' }}">{{ 'Overdue' if l.overdue else 'In play' }} · due<br>{{ l.due_at | fmt_dt | safe }}</span>
+      </div>
+      <div style="margin: 0.4rem 0;">
+        <strong>Issued in condition grade:</strong> <b>{{ l.issue_grade }}</b>{% if l.issue_notes %}: {{ l.issue_notes }}{% endif %}
+      </div>
+      {% if l.issue_photo %}
+      <div style="margin: 0.5rem 0;">
+        <small style="display:block; margin-bottom:0.2rem; font-weight:600;">📷 Handover Condition Photo:</small>
+        <a href="{{ l.issue_photo }}" target="_blank">
+          <img src="{{ l.issue_photo }}" alt="Handover Condition" style="max-height: 120px; border-radius: 6px; border: 1.5px solid var(--line); object-fit: cover;">
+        </a>
+      </div>
+      {% endif %}
+      <div style="margin: 0.4rem 0;">
+        <small style="display:block; font-weight:600; color:var(--grey); margin-bottom:0.2rem;">Group Borrowers:</small>
+        {{ group(l) }}
+      </div>
+      <div class="row end">
+        <button class="btn primary" data-dlg="return" data-title="Return Loan #REQ-{{ '%04d' % l.id }} ({{ l.ename }})" data-action="/coord/return/{{ l.id }}">Process return</button>
+      </div>
+    </article>
+    {% else %}
+    <p class="empty">Nothing is currently out on loan.</p>
+    {% endfor %}
+  </section>
+</div>
+
+<!-- TAB 4: EQUIPMENT CATALOG -->
+<div class="tab-panel" id="tab-catalog" style="display: none;">
+  {{ catalog(true) }}
+</div>
+
+<!-- TAB 5: DUES AND SUSPENSIONS -->
+<div class="tab-panel" id="tab-dues" style="display: none;">
+  <section>
+    <h2>Dues and suspensions</h2>
+    {% if dues %}<div class="scroll"><table><thead><tr><th>Student</th><th>Item</th><th>Share</th><th>Action</th></tr></thead>
+      {% for d in dues %}<tr><td><b>#{{ d.user_id if 'user_id' in d else '' }}</b> {{ d.name }} <small>{{ d.email }}</small></td><td>{{ d.ename }} (Loan #REQ-{{ '%04d' % d.lid }})</td><td>₹{{ '%.2f' % d.share }}</td>
+        <td><form method="post" action="/coord/pay/{{ d.id }}"><button class="btn small">Mark paid</button></form></td></tr>{% endfor %}
+    </table></div>{% else %}<p class="empty">No unpaid dues.</p>{% endif %}
+
+    <h3 style="margin-top: 1.5rem;">Suspended Students</h3>
+    {% for s in flagged %}
+    <div class="card row"><span><b>#{{ s.id }} {{ s.name }}</b> ({{ s.email }}) is suspended: {{ s.reason }}</span>
+      <form method="post" action="/coord/reinstate/{{ s.id }}"><button class="btn small primary">Clear dues & reinstate</button></form></div>
+    {% else %}
+    <p class="empty">No students are currently suspended.</p>
+    {% endfor %}
+  </section>
+</div>
+
+<!-- TAB 6: LIVE FIELD BOARD -->
+<div class="tab-panel" id="tab-live-board" style="display: none;">
+  {{ board(out) }}
+</div>
+
+{% if user.role == 'admin' %}
+<!-- TAB 7: ADMIN COORDINATOR MANAGEMENT (Admin Only) -->
+<div class="tab-panel" id="tab-admin-coordinators" style="display: none;">
+  <section>
+    <div class="row">
+      <h2>👑 Admin Coordinator & User Control Panel</h2>
+      <button class="btn primary small" onclick="openDlg('admin-create-user', 'Add New User / Coordinator', '/admin/user/create')">
+        ➕ Create New User / Coordinator
+      </button>
+    </div>
+
+    <div class="scroll" style="margin-top: 1rem;">
+      <table>
+        <thead>
+          <tr>
+            <th>User ID</th>
+            <th>Name & Email</th>
+            <th>Role</th>
+            <th>Standing</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in all_users %}
+          <tr>
+            <td><code>#{{ u.id }}</code></td>
+            <td>
+              <strong>{{ u.name }}</strong><br>
+              <small>{{ u.email }}</small>
+            </td>
+            <td>
+              <span class="role-pill {{ u.role }}">{{ u.role | title }}</span>
+            </td>
+            <td>
+              {% if u.override %}
+              <span class="badge green">Reinstated</span>
+              {% else %}
+              <span class="badge green">Good</span>
+              {% endif %}
+            </td>
+            <td>
+              <div style="display: flex; gap: 0.3rem; flex-wrap: wrap;">
+                <!-- Role Change Form -->
+                <form method="post" action="/admin/user/role" style="display: inline-flex; gap: 0.2rem;">
+                  <input type="hidden" name="user_id" value="{{ u.id }}">
+                  <select name="role" style="padding: 0.2rem 0.4rem; font-size: 0.8rem; width: auto;" onchange="this.form.submit()">
+                    <option value="student" {{ 'selected' if u.role == 'student' }}>Student</option>
+                    <option value="coordinator" {{ 'selected' if u.role == 'coordinator' }}>Coordinator</option>
+                    <option value="admin" {{ 'selected' if u.role == 'admin' }}>Admin</option>
+                  </select>
+                </form>
+
+                <!-- Password Reset Trigger -->
+                <button class="btn small ghost" onclick="openResetPwDlg({{ u.id }}, '{{ u.name }}')">
+                  🔑 Reset PW
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<!-- TAB 8: REAL SYSTEM AUDIT LOG (Admin Only) -->
+<div class="tab-panel" id="tab-admin-audit" style="display: none;">
+  <section>
+    <h2>📜 Real System Audit Log ("The Real Things")</h2>
+    <p class="hint">Comprehensive timestamped record of all issues, returns, inventory updates, and role modifications.</p>
+
+    <div class="scroll" style="margin-top: 1rem; max-height: 70vh;">
+      <table>
+        <thead>
+          <tr>
+            <th>Log ID</th>
+            <th>Timestamp</th>
+            <th>Performed By</th>
+            <th>Action Category</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in audit_logs %}
+          <tr>
+            <td><code>#LOG-{{ '%04d' % log.id }}</code></td>
+            <td><small>{{ log.timestamp | fmt_dt | safe }}</small></td>
+            <td><strong>{{ log.user_name }}</strong> <small>(ID: #{{ log.user_id }})</small></td>
+            <td><span class="badge court">{{ log.action }}</span></td>
+            <td>{{ log.details }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="empty">No audit logs recorded yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<!-- TAB 9: SECURITY & SYSTEM CONFIG (Admin Only) -->
+<div class="tab-panel" id="tab-admin-config" style="display: none;">
+  <section>
+    <h2>⚙️ Security & System Configuration</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; margin-top: 1rem;">
+      
+      <div class="card">
+        <h3>🔑 Security Passkeys Management</h3>
+        <form method="post" action="/admin/config/keys" class="stack" style="margin-top: 0.8rem;">
+          <label>Coordinator Passkey
+            <input type="text" name="coordinator_key" value="{{ coord_key }}" required>
+          </label>
+          <label>Admin Superkey
+            <input type="text" name="admin_key" value="{{ admin_key }}" required>
+          </label>
+          <button type="submit" class="btn primary">Update Security Keys</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h3>ℹ️ System Diagnostics</h3>
+        <ul style="list-style: none; padding: 0; margin: 0.5rem 0 0;">
+          <li style="padding: 0.3rem 0; border-bottom: 1px solid var(--line);">
+            <strong>Platform:</strong> Flask + SQLite3
+          </li>
+          <li style="padding: 0.3rem 0; border-bottom: 1px solid var(--line);">
+            <strong>Active Domain:</strong> <code>@sitare.org</code>
+          </li>
+          <li style="padding: 0.3rem 0; border-bottom: 1px solid var(--line);">
+            <strong>Database File:</strong> <code>sports.db</code>
+          </li>
+          <li style="padding: 0.3rem 0;">
+            <strong>System Status:</strong> 🟢 Operational
+          </li>
+        </ul>
+      </div>
+
+    </div>
+  </section>
+</div>
+{% endif %}
+
+<!-- DIALOGS -->
+<dialog id="dlg-issue"><form method="post" enctype="multipart/form-data" class="stack">
+  <h3 class="dlg-title"></h3>
+  <label>Condition at handover
+    <select name="grade"><option value="A">Grade A: new or excellent</option><option value="B">Grade B: normal wear</option></select></label>
+  <label>Notes on existing blemishes<textarea name="notes" rows="2" placeholder="Scuffed on one side, faded logo…"></textarea></label>
+  <label>📷 Snap / Upload Handover Condition Photo
+    <input type="file" name="photo" accept="image/*" capture="environment">
+  </label>
+  <div class="row"><button type="button" class="btn ghost" data-close>Cancel</button><button class="btn primary">Release item</button></div>
+</form></dialog>
+
+<dialog id="dlg-return"><form method="post" enctype="multipart/form-data" class="stack">
+  <h3 class="dlg-title"></h3>
+  <label>Condition on return
+    <select name="grade"><option value="A">Grade A: restock</option><option value="B">Grade B: restock</option>
+      <option value="C">Grade C: send to maintenance</option><option value="D">Grade D: condemned or lost</option></select></label>
+  <label>Inspection notes<textarea name="notes" rows="2" placeholder="Describe return condition or damage..."></textarea></label>
+  <label>Total fine (₹), late or damage<input type="number" name="fine" min="0" step="0.01" value="0"></label>
+  <label>📷 Snap / Upload Return Condition Photo
+    <input type="file" name="photo" accept="image/*" capture="environment">
+  </label>
+  <p class="hint">The fine is divided equally among every group member.</p>
+  <div class="row"><button type="button" class="btn ghost" data-close>Cancel</button><button class="btn primary">Log return</button></div>
+</form></dialog>
+
+<dialog id="dlg-equip"><form method="post" enctype="multipart/form-data" class="stack">
+  <h3 class="dlg-title"></h3>
+  <input type="hidden" name="id">
+  <label>Item name<input name="name" required></label>
+  <label>Sport<select name="sport">{% for s in sports %}<option>{{ s }}</option>{% endfor %}</select></label>
+  <label>Brand or model<input name="brand"></label>
+  <label>Rack location<input name="rack"></label>
+  <label>Condition<select name="grade"><option>A</option><option>B</option><option>C</option><option>D</option></select></label>
+  <label>📷 Equipment Reference Photo
+    <input type="file" name="photo" accept="image/*">
+  </label>
+  <label class="only-edit">Status<select name="status"><option value="available">Available</option>
+    <option value="maintenance">Maintenance</option><option value="condemned">Scrapped</option></select></label>
+  <label class="only-add">Units to add<input type="number" name="qty" min="1" max="50" value="1"></label>
+  <div class="row"><button type="button" class="btn ghost" data-close>Cancel</button><button class="btn primary">Save</button></div>
+</form></dialog>
+
+<dialog id="dlg-history"><div class="stack">
+  <h3 class="dlg-title"></h3><div id="hist" class="scroll"></div>
+  <button class="btn ghost" data-close>Close</button></div></dialog>
+
+{% if user.role == 'admin' %}
+<dialog id="dlg-admin-create-user">
+  <form method="post" action="/admin/user/create" class="stack">
+    <h3 class="dlg-title">Add New User / Coordinator</h3>
+    <label>Full Name
+      <input type="text" name="name" placeholder="e.g. John Doe" required>
+    </label>
+    <label>Email Address (@sitare.org)
+      <input type="email" name="email" placeholder="e.g. jdoe@sitare.org" required>
+    </label>
+    <label>Role
+      <select name="role">
+        <option value="coordinator" selected>Coordinator</option>
+        <option value="admin">Admin</option>
+        <option value="student">Student</option>
+      </select>
+    </label>
+    <label>Password
+      <input type="password" name="password" placeholder="Min 6 characters" required>
+    </label>
+    <div class="row">
+      <button type="button" class="btn ghost" data-close>Cancel</button>
+      <button class="btn primary">Create Account</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlg-admin-reset-pw">
+  <form method="post" action="/admin/user/password" class="stack">
+    <h3 class="dlg-title">Reset Password</h3>
+    <input type="hidden" name="user_id" id="reset-user-id">
+    <p id="reset-user-name" class="hint"></p>
+    <label>New Password
+      <input type="password" name="new_password" placeholder="Min 6 characters" required>
+    </label>
+    <div class="row">
+      <button type="button" class="btn ghost" data-close>Cancel</button>
+      <button class="btn primary">Update Password</button>
+    </div>
+  </form>
+</dialog>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,90 @@
+{% macro scoreboard() %}
+<div class="score">
+  <div class="g"><span>Available</span><b id="st-available">0</b></div>
+  <div class="a"><span>Issued</span><b id="st-issued">0</b></div>
+  <div class="x"><span>Maintenance</span><b id="st-maintenance">0</b></div>
+  <div><span>Total Active</span><b id="st-total">0</b></div>
+</div>
+{% endmacro %}
+
+{% macro catalog(is_coord=False) %}
+<section>
+  <div class="row">
+    <h2>Equipment catalog</h2>
+    {% if is_coord %}
+    <button class="btn primary small" data-dlg="equip" data-title="Add Equipment" data-action="/coord/equipment">+ Add equipment</button>
+    {% endif %}
+  </div>
+  <div class="filters">
+    <input type="search" id="q" placeholder="Search by item name, brand, SKU or rack…">
+    <select id="sport">
+      <option value="">All sports</option>
+      {% for s in sports %}
+      <option value="{{ s }}">{{ s }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Equipment</th>
+          <th>Sport</th>
+          <th>SKU</th>
+          <th>Rack</th>
+          <th>Condition</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="catalog">
+        <tr><td colspan="7">Loading catalog…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endmacro %}
+
+{% macro group(l) %}
+<ul class="group">
+  {% for m in l.members %}
+  <li><b>#{{ m.user_id }}</b> {{ m.name }} <small>({{ m.email }})</small></li>
+  {% endfor %}
+</ul>
+{% endmacro %}
+
+{% macro board(out) %}
+<section>
+  <h2>Live field board <small>all active loans</small></h2>
+  {% if out %}
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Request ID</th>
+          <th>Item</th>
+          <th>Sport</th>
+          <th>SKU</th>
+          <th>Group Lead</th>
+          <th>Due</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for l in out %}
+        <tr>
+          <td><code>#REQ-{{ '%04d' % l.id }}</code></td>
+          <td><b>{{ l.ename }}</b></td>
+          <td>{{ l.sport }}</td>
+          <td><code>{{ l.sku }}</code></td>
+          <td>{{ l.lead_name }} <small>(User ID: #{{ l.lead_id }})</small></td>
+          <td><span class="badge {{ 'red' if l.overdue else 'amber' }}">{{ l.due_at | fmt_dt | safe }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">No equipment is currently issued on the field.</p>
+  {% endif %}
+</section>
+{% endmacro %}

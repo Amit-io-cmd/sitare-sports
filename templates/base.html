@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}{% endblock %} - Sitare Sports Desk</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+  <meta name="theme-color" content="#1f4fb5">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Sports Desk">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-192.png') }}">
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</head>
+<body data-role="{{ user.role if user else '' }}" data-suspended="{{ '1' if suspended else '0' }}">
+  {% if user %}
+  <div class="app-layout">
+    <!-- Sidebar Navigation -->
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-header">
+        <a href="/" class="brand">
+          <span class="brand-icon">🏆</span>
+          <div class="brand-text">
+            <strong>Sitare Desk</strong>
+            <small>Sports Portal</small>
+          </div>
+        </a>
+        <button id="sidebar-close" class="sidebar-close-btn" aria-label="Close Sidebar" onclick="toggleSidebar(false)">✕</button>
+      </div>
+
+      <div class="user-profile-card">
+        <div class="user-avatar">{{ user.name[0] | upper }}</div>
+        <div class="user-info">
+          <div class="user-name">{{ user.name }}</div>
+          <span class="role-pill {{ user.role }}">{{ user.role | title }}</span>
+        </div>
+      </div>
+
+      <nav class="side-nav">
+        <div class="nav-section-label">NAVIGATION TABS</div>
+
+        {% if user.role in ['coordinator', 'admin'] %}
+        <a href="#tab-dashboard" class="nav-item active" onclick="switchTab('tab-dashboard')">
+          <span class="nav-icon">📊</span>
+          <span class="nav-text">Dashboard</span>
+        </a>
+        <a href="#tab-issue-queue" class="nav-item" onclick="switchTab('tab-issue-queue')">
+          <span class="nav-icon">📥</span>
+          <span class="nav-text">Issue Queue</span>
+          {% if pending and pending | length > 0 %}
+          <span class="nav-badge red">{{ pending | length }}</span>
+          {% endif %}
+        </a>
+        <a href="#tab-active-loans" class="nav-item" onclick="switchTab('tab-active-loans')">
+          <span class="nav-icon">🏃</span>
+          <span class="nav-text">Active Field Loans</span>
+          {% if out and out | length > 0 %}
+          <span class="nav-badge amber">{{ out | length }}</span>
+          {% endif %}
+        </a>
+        <a href="#tab-catalog" class="nav-item" onclick="switchTab('tab-catalog')">
+          <span class="nav-icon">📦</span>
+          <span class="nav-text">Equipment Catalog</span>
+        </a>
+        <a href="#tab-dues" class="nav-item" onclick="switchTab('tab-dues')">
+          <span class="nav-icon">💰</span>
+          <span class="nav-text">Dues & Suspensions</span>
+          {% set due_count = (dues | length if dues else 0) + (flagged | length if flagged else 0) %}
+          {% if due_count > 0 %}
+          <span class="nav-badge red">{{ due_count }}</span>
+          {% endif %}
+        </a>
+        {% endif %}
+
+        {% if user.role == 'student' %}
+        <a href="#tab-catalog" class="nav-item active" onclick="switchTab('tab-catalog')">
+          <span class="nav-icon">📦</span>
+          <span class="nav-text">Equipment Catalog</span>
+        </a>
+        <a href="#tab-my-loans" class="nav-item" onclick="switchTab('tab-my-loans')">
+          <span class="nav-icon">📋</span>
+          <span class="nav-text">My Group Loans</span>
+          {% if mine and mine | length > 0 %}
+          <span class="nav-badge court">{{ mine | length }}</span>
+          {% endif %}
+        </a>
+        {% endif %}
+
+        <a href="#tab-live-board" class="nav-item" onclick="switchTab('tab-live-board')">
+          <span class="nav-icon">⚽</span>
+          <span class="nav-text">Live Field Board</span>
+        </a>
+
+        {% if user.role == 'admin' %}
+        <div class="nav-section-label">ADMIN CONTROL</div>
+        <a href="#tab-admin-coordinators" class="nav-item" onclick="switchTab('tab-admin-coordinators')">
+          <span class="nav-icon">👑</span>
+          <span class="nav-text">Coordinator Controls</span>
+          {% if user_counts %}
+          <span class="nav-badge court">{{ user_counts.coordinators }}</span>
+          {% endif %}
+        </a>
+        <a href="#tab-admin-audit" class="nav-item" onclick="switchTab('tab-admin-audit')">
+          <span class="nav-icon">📜</span>
+          <span class="nav-text">Real System Audit Log</span>
+        </a>
+        <a href="#tab-admin-config" class="nav-item" onclick="switchTab('tab-admin-config')">
+          <span class="nav-icon">⚙️</span>
+          <span class="nav-text">Security & Config</span>
+        </a>
+        {% endif %}
+      </nav>
+
+      <div class="sidebar-footer" style="display: grid; gap: 0.5rem;">
+        {% if user.role in ['coordinator', 'admin'] %}
+        <button class="btn primary small" style="width: 100%; justify-content: center;" onclick="openQRScanner()">
+          <span>📷 Scan QR / Barcode</span>
+        </button>
+        {% endif %}
+        <button id="pwa-install-btn" class="btn primary small" style="display: inline-flex; width: 100%; justify-content: center;" onclick="installPWA()">
+          <span>📲 Install Mobile App</span>
+        </button>
+        <a href="/logout" class="btn ghost small logout-btn">
+          <span>🚪 Sign Out</span>
+        </a>
+      </div>
+    </aside>
+
+    <!-- Main Content Wrapper -->
+    <div class="main-wrapper">
+      <header class="topbar">
+        <button id="sidebar-toggle" class="sidebar-toggle-btn" onclick="toggleSidebar(true)" aria-label="Toggle Sidebar Navigation">
+          ☰ Navigation Menu
+        </button>
+        <div class="topbar-title">
+          <h1 id="active-tab-title">Dashboard</h1>
+          <span class="live-pill">🟢 Real-Time Desk</span>
+        </div>
+
+        <div class="topbar-right" style="display: flex; align-items: center; gap: 0.8rem;">
+          {% if user.role in ['coordinator', 'admin'] %}
+          <button class="btn primary small" onclick="openQRScanner()" style="font-size: 0.82rem; padding: 0.3rem 0.6rem;">
+            <span>📷 Scan SKU</span>
+          </button>
+          {% endif %}
+
+          <!-- Notification Bell Widget -->
+          <div class="notif-wrapper" style="position: relative;">
+            <button id="notif-bell-btn" class="notif-bell-btn" onclick="toggleNotifPanel()" aria-label="Notifications">
+              🔔
+              <span id="notif-badge" class="notif-badge" style="display: none;">0</span>
+            </button>
+
+            <!-- Notifications Dropdown Popover -->
+            <div id="notif-popover" class="notif-popover" style="display: none;">
+              <div class="notif-header">
+                <strong>Notifications</strong>
+                <button class="btn text-btn" onclick="markNotifsRead()" style="font-size: 0.75rem; padding: 0; background: none; border: none; color: var(--court); cursor: pointer;">Mark all as read</button>
+              </div>
+              <div id="notif-list" class="notif-list">
+                <p class="empty" style="padding: 1rem; text-align: center;">No new notifications.</p>
+              </div>
+            </div>
+          </div>
+
+          <span class="current-time" id="live-clock"></span>
+        </div>
+      </header>
+
+      <main class="main-content">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+  {% else %}
+  <main class="login-layout">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    {% block login_content %}{% endblock %}
+  </main>
+  {% endif %}
+  <!-- PWA Install Guide Dialog -->
+  <dialog id="dlg-install-guide">
+    <div class="stack" style="text-align: center;">
+      <h3 style="margin-bottom: 0.2rem;">📲 Install Sports Desk App</h3>
+      <p class="hint">Install Sitare Sports Desk on your phone or laptop home screen for quick 1-click access.</p>
+
+      <div style="background: var(--chalk); padding: 0.9rem; border-radius: var(--r); text-align: left; margin: 0.5rem 0; border: 1px solid var(--line);">
+        <div style="margin-bottom: 0.8rem;">
+          <strong style="color: var(--court);">📱 On Android (Chrome / Edge):</strong>
+          <ol style="margin: 0.3rem 0 0 1.2rem; padding: 0; font-size: 0.88rem;">
+            <li>Tap the top-right menu <code>⋮</code> (three dots).</li>
+            <li>Tap <strong>"Add to Home Screen"</strong> or <strong>"Install App"</strong>.</li>
+          </ol>
+        </div>
+
+        <div style="margin-bottom: 0.8rem;">
+          <strong style="color: var(--court);">🍎 On iPhone / iPad (Safari):</strong>
+          <ol style="margin: 0.3rem 0 0 1.2rem; padding: 0; font-size: 0.88rem;">
+            <li>Tap the <strong>Share</strong> button <code>⎋</code> at the bottom of Safari.</li>
+            <li>Scroll down and tap <strong>"Add to Home Screen"</strong>.</li>
+          </ol>
+        </div>
+
+        <div>
+          <strong style="color: var(--court);">💻 On PC / Laptop (Chrome / Edge):</strong>
+          <ol style="margin: 0.3rem 0 0 1.2rem; padding: 0; font-size: 0.88rem;">
+            <li>Click the <strong>Install</strong> icon <code>⊕</code> in the URL address bar.</li>
+            <li>Click <strong>Install</strong>.</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="row" style="justify-content: center;">
+  <!-- QR / Barcode Scanner Modal -->
+  <dialog id="dlg-qr-scanner" style="width: min(540px, 94vw);">
+    <div class="stack">
+      <div class="row">
+        <h3>📷 Equipment QR & Barcode Scanner</h3>
+        <button type="button" class="btn ghost small" onclick="closeQRScanner()">✕ Close</button>
+      </div>
+      
+      <div id="qr-status-msg" style="font-size: 0.85rem; color: var(--grey); background: var(--chalk); padding: 0.5rem 0.75rem; border-radius: 4px;">
+        Point your camera at an equipment SKU barcode or loan request label.
+      </div>
+
+      <!-- Video Scanner Container -->
+      <div id="qr-reader" style="width: 100%; min-height: 220px; background: #0b1329; border-radius: var(--r); overflow: hidden; display: flex; align-items: center; justify-content: center;"></div>
+
+      <!-- Camera Photo Snap / Upload Button (Works on all mobile phones & browsers) -->
+      <input type="file" id="qr-file-input" accept="image/*" capture="environment" style="display: none;" onchange="handleQRFileScan(event)">
+      
+      <div class="row" style="gap: 0.5rem;">
+        <button type="button" class="btn primary" onclick="document.getElementById('qr-file-input').click()" style="flex: 1; justify-content: center;">
+          📸 Snap Photo of Barcode
+        </button>
+      </div>
+
+      <!-- Manual Lookup Form -->
+      <form onsubmit="handleManualScan(event)" class="row" style="margin-top: 0.3rem;">
+        <input type="text" id="manual-sku" placeholder="Or type SKU (e.g. CRK-0002 or REQ-0001)..." required style="flex: 1;">
+        <button type="submit" class="btn ghost">Lookup SKU</button>
+      </form>
+    </div>
+  </dialog>
+</body>
+</html>

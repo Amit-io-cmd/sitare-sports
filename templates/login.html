@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Sign In{% endblock %}
+{% block login_content %}
+<div class="card login" style="max-width: 520px; margin: 4vh auto 0;">
+  <h2>Sign in to Sitare Sports Desk</h2>
+  <p class="hint">Select your portal role to sign in.</p>
+
+  <!-- Role Selector Tabs -->
+  <div style="display: flex; gap: 0.4rem; margin-top: 0.5rem; margin-bottom: 1rem; border-bottom: 2px solid var(--line); padding-bottom: 0.5rem;">
+    <button id="tab-student" type="button" class="btn primary" onclick="switchRole('student')" style="flex: 1; text-align: center; padding: 0.4rem 0.2rem; font-size: 0.85rem;">
+      🎓 Student
+    </button>
+    <button id="tab-coord" type="button" class="btn ghost" onclick="switchRole('coordinator')" style="flex: 1; text-align: center; padding: 0.4rem 0.2rem; font-size: 0.85rem;">
+      🛡️ Coordinator
+    </button>
+    <button id="tab-admin" type="button" class="btn ghost" onclick="switchRole('admin')" style="flex: 1; text-align: center; padding: 0.4rem 0.2rem; font-size: 0.85rem;">
+      👑 Admin
+    </button>
+  </div>
+
+  <!-- Student Form -->
+  <form id="form-student" method="post" action="/login" class="stack">
+    <input type="hidden" name="role_type" value="student">
+    <div style="background: #eef3fc; border-left: 4px solid var(--court); padding: 0.75rem; border-radius: 4px; font-size: 0.85rem;">
+      <strong>Student Portal:</strong> Use your <code>@sitare.org</code> email. First login auto-creates your student account.
+    </div>
+    <label>Student Email Address
+      <input type="email" id="student-email" name="email" placeholder="e.g. alex@sitare.org" required>
+    </label>
+    <label>Password
+      <input type="password" name="password" placeholder="Password (min 6 chars for new accounts)" required>
+    </label>
+    <button type="submit" class="btn primary" style="width: 100%; margin-top: 0.5rem;">Sign In as Student</button>
+  </form>
+
+  <!-- Coordinator Form -->
+  <form id="form-coord" method="post" action="/login" class="stack" style="display: none;">
+    <input type="hidden" name="role_type" value="coordinator">
+    <div style="background: #fff8e6; border-left: 4px solid var(--amber); padding: 0.75rem; border-radius: 4px; font-size: 0.85rem;">
+      <strong>Protected Coordinator Portal:</strong> Requires Coordinator Email, Password, AND Coordinator Security Key.
+    </div>
+    <label>Coordinator Email Address
+      <input type="email" id="coord-email" name="email" value="sports@sitare.org" required>
+    </label>
+    <label>Account Password
+      <input type="password" id="coord-password" name="password" value="coord123" required>
+    </label>
+    <label>Coordinator Security Key 🔑
+      <input type="password" id="coord-key" name="coordinator_key" placeholder="Enter Coordinator Security Key" required>
+    </label>
+    <div style="display: grid; gap: 0.5rem; margin-top: 0.5rem;">
+      <button type="submit" class="btn primary" style="width: 100%;">Sign In as Coordinator</button>
+      <button type="button" class="btn ghost" onclick="quickCoordLogin()" style="width: 100%; border-color: var(--court); color: var(--court);">
+        ⚡ Demo 1-Click Coordinator Sign In
+      </button>
+    </div>
+  </form>
+
+  <!-- Admin Form -->
+  <form id="form-admin" method="post" action="/login" class="stack" style="display: none;">
+    <input type="hidden" name="role_type" value="admin">
+    <div style="background: #fdf2f2; border-left: 4px solid var(--red); padding: 0.75rem; border-radius: 4px; font-size: 0.85rem;">
+      <strong>Super Admin Control Portal:</strong> Access overall university sports management, coordinator controls, and real-time audit logs.
+    </div>
+    <label>Admin Email Address
+      <input type="email" id="admin-email" name="email" value="admin@sitare.org" required>
+    </label>
+    <label>Admin Password
+      <input type="password" id="admin-password" name="password" value="admin123" required>
+    </label>
+    <label>Admin Security Passkey 🔑
+      <input type="password" id="admin-key" name="admin_key" placeholder="Enter Admin Security Key" required>
+    </label>
+    <div style="display: grid; gap: 0.5rem; margin-top: 0.5rem;">
+      <button type="submit" class="btn primary" style="width: 100%; background: var(--ink); color: #fff;">Sign In as System Admin</button>
+      <button type="button" class="btn ghost" onclick="quickAdminLogin()" style="width: 100%; border-color: var(--red); color: var(--red);">
+        ⚡ Demo 1-Click System Admin Sign In
+      </button>
+    </div>
+  </form>
+
+  <div style="margin-top: 1rem; padding-top: 0.8rem; border-top: 1px dashed var(--line); text-align: center;">
+    <button type="button" class="btn primary small" onclick="installPWA()" style="width: 100%; justify-content: center;">
+      📲 Install Mobile App on Phone / PC
+    </button>
+  </div>
+</div>
+
+<script>
+function switchRole(role) {
+  const tabStudent = document.getElementById('tab-student');
+  const tabCoord = document.getElementById('tab-coord');
+  const tabAdmin = document.getElementById('tab-admin');
+  const formStudent = document.getElementById('form-student');
+  const formCoord = document.getElementById('form-coord');
+  const formAdmin = document.getElementById('form-admin');
+
+  tabStudent.className = role === 'student' ? 'btn primary' : 'btn ghost';
+  tabCoord.className = role === 'coordinator' ? 'btn primary' : 'btn ghost';
+  tabAdmin.className = role === 'admin' ? 'btn primary' : 'btn ghost';
+
+  formStudent.style.display = role === 'student' ? 'grid' : 'none';
+  formCoord.style.display = role === 'coordinator' ? 'grid' : 'none';
+  formAdmin.style.display = role === 'admin' ? 'grid' : 'none';
+}
+
+function quickCoordLogin() {
+  document.getElementById('coord-email').value = 'sports@sitare.org';
+  document.getElementById('coord-password').value = 'coord123';
+  document.getElementById('coord-key').value = 'Mission';
+  document.getElementById('form-coord').submit();
+}
+
+function quickAdminLogin() {
+  document.getElementById('admin-email').value = 'admin@sitare.org';
+  document.getElementById('admin-password').value = 'admin123';
+  document.getElementById('admin-key').value = 'Admin2026';
+  document.getElementById('form-admin').submit();
+}
+</script>
+{% endblock %}
